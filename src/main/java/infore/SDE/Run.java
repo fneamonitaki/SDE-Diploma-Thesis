@@ -39,6 +39,8 @@ public class Run {
 	private static String kafkaBrokersList;
 	private static int parallelism;
 	private static String kafkaOutputTopic;
+	private static int multiplier;
+	private static int multiplierParallelism;
 
 	/**
 	 * @param args Program arguments. You have to provide 4 arguments otherwise
@@ -59,26 +61,14 @@ public class Run {
 		initializeParameters(args);
 		StreamExecutionEnvironment env = StreamExecutionEnvironment.getExecutionEnvironment();
 		env.setParallelism(parallelism);
-		kafkaStringConsumer kc = new kafkaStringConsumer(kafkaBrokersList, kafkaDataInputTopic);
-		kafkaStringConsumer requests = new kafkaStringConsumer(kafkaBrokersList, kafkaRequestInputTopic);
+		kafkaStringConsumer_Earliest kc = new kafkaStringConsumer_Earliest(kafkaBrokersList, kafkaDataInputTopic);
+		kafkaStringConsumer_Earliest requests = new kafkaStringConsumer_Earliest(kafkaBrokersList, kafkaRequestInputTopic);
 		kafkaProducerEstimation kp = new kafkaProducerEstimation(kafkaBrokersList, kafkaOutputTopic);
 
-
-		DataStream<String> datastream = env.addSource(kc.getFc());
 		DataStream<String> RQ_stream = env.addSource(requests.getFc());
+		DataStream<String> datastream = env.addSource(kc.getFc());
 
-		//map kafka data input to tuple2<int,double>
-		DataStream<Datapoint> dataStream = datastream
-				.map(new MapFunction<String, Datapoint>() {
-					@Override
-					public Datapoint map(String node) throws IOException {
-						// TODO Auto-generated method stub
-						ObjectMapper objectMapper = new ObjectMapper();
-						Datapoint dp = objectMapper.readValue(node, Datapoint.class);
-						return dp;
-					}
-			}).name("DATA_SOURCE").keyBy((KeySelector<Datapoint, String>)Datapoint::getKey);
-		
+
 		//DataStream<Tuple2<String, String>> dataStream = datastream.flatMap(new IngestionMultiplierFlatMap(multi)).setParallelism(parallelism2).keyBy(0);
 		DataStream<Request> RQ_Stream = RQ_stream
 				.map(new MapFunction<String, Request>() {
@@ -100,10 +90,31 @@ public class Run {
 				.flatMap(new RqRouterFlatMap()).name("REQUEST_ROUTER");
 
 
+		//map kafka data input to tuple2<int,double>
+
+
+		DataStream<Datapoint> dataStream = datastream
+				.map(new MapFunction<String, Datapoint>() {
+					@Override
+					public Datapoint map(String node) throws IOException {
+						// TODO Auto-generated method stub
+						ObjectMapper objectMapper = new ObjectMapper();
+						Datapoint dp = objectMapper.readValue(node, Datapoint.class);
+						return dp;
+					}
+			}).name("DATA_SOURCE").keyBy((KeySelector<Datapoint, String>)Datapoint::getKey);
+
+
+/*
 		DataStream<Datapoint> DataStream = dataStream.connect(RQ_Stream)
 				                                .flatMap(new dataRouterCoFlatMap()).name("DATA_ROUTER")
 												.keyBy((KeySelector<Datapoint, String>) Datapoint::getKey);
-
+*/
+		DataStream<Datapoint> DataStream = dataStream
+				.connect(RQ_Stream)
+				.flatMap(new dataRouterCoFlatMap())
+				.name("DATA_ROUTER")
+				.keyBy((KeySelector<Datapoint, String>) Datapoint::getKey);
 
 		DataStream<Estimation> estimationStream = DataStream.keyBy((KeySelector<Datapoint, String>) Datapoint::getKey)
 				.connect(SynopsisRequests.keyBy((KeySelector<Request, String>) Request::getKey))
@@ -129,7 +140,10 @@ public class Run {
 			});
 		
 		DataStream<Estimation> single = split.select("single");
-		DataStream<Estimation> multy = split.select("multy").keyBy((KeySelector<Estimation, String>) Estimation::getKey);
+		//DataStream<Estimation> multy = split.select("multy").keyBy((KeySelector<Estimation, String>) Estimation::getKey);
+		DataStream<Estimation> multy =
+				split.select("multy")
+						.keyBy((KeySelector<Estimation, String>) Estimation::getKey);
 		single.addSink(kp.getProducer());
 		DataStream<Estimation> partialOutputStream = multy.flatMap(new ReduceFlatMap()).name("REDUCE");
 
@@ -158,7 +172,7 @@ public class Run {
 		//UR.addSink(pRequest.getProducer());
 
 		finalStream.addSink(kp.getProducer());
-		env.execute("Streaming SDE");
+		env.execute("Streaming SDE zneamonitaki");
 
 }
 
@@ -182,16 +196,19 @@ public class Run {
 			System.out.println("[INFO] Default values");
 			//Default values
 			//kafkaDataInputTopic = "FAN";
-			kafkaDataInputTopic = "data_topic";
-			kafkaRequestInputTopic = "request_topic";
+			kafkaDataInputTopic = "data_topic_faye_part8_1M_dataset";
+			kafkaRequestInputTopic = "request_topic_faye_part8_1M_dataset";
 			//kafkaRequestInputTopic = "Rq_FAN";
-			parallelism = 4;
+			parallelism = 8;
 			//parallelism2 = 4;
 			//kafkaBrokersList = "clu02.softnet.tuc.gr:6667,clu03.softnet.tuc.gr:6667,clu04.softnet.tuc.gr:6667,clu06.softnet.tuc.gr:6667";
 			//kafkaBrokersList = "45.10.26.123:19092";
+			//kafkaBrokersList ="clu02.softnet.tuc.gr:6667," +"clu03.softnet.tuc.gr:6667," +"clu04.softnet.tuc.gr:6667," +"clu06.softnet.tuc.gr:6667";
 			kafkaBrokersList = "localhost:9092";
 			//kafkaBrokersList = "159.69.32.166:9092";
-			kafkaOutputTopic = "estimation_topic";
+			kafkaOutputTopic = "estimation_topic_faye_part8_1M_dataset";
+			//multiplier = 500;
+			//multiplierParallelism = parallelism;
 		}
 	}
 }

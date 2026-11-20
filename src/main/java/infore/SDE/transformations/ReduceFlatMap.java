@@ -5,7 +5,6 @@ import infore.SDE.messages.Estimation;
 import infore.SDE.reduceFunctions.WLSH_Reduce;
 import org.apache.flink.api.common.functions.RichFlatMapFunction;
 import org.apache.flink.util.Collector;
-
 import java.util.HashMap;
 
 public class ReduceFlatMap extends RichFlatMapFunction<Estimation, Estimation> {
@@ -14,7 +13,7 @@ public class ReduceFlatMap extends RichFlatMapFunction<Estimation, Estimation> {
      */
     private static final long serialVersionUID = 1L;
     private HashMap<String, ReduceFunction> rf = new HashMap<>();
-
+    private int subtaskId;
 
     @Override
     public void flatMap(Estimation value, Collector<Estimation> out){
@@ -49,6 +48,21 @@ public class ReduceFlatMap extends RichFlatMapFunction<Estimation, Estimation> {
         //RadiusCount
         if (id == 100) {
             t_rf = new RadiusReduce(value.getNoOfP(), 0, value.getParam(), value.getSynopsisID(), value.getRequestID());
+            t_rf.add(value);
+        }
+        //ReqSketch
+        else if (id == 18) {
+            //int M=4;
+            String[] reduceParams = new String[]{
+
+                    value.getParam().length > 0 ? value.getParam()[0] : "binary",
+                    value.getParam().length > 1 ? value.getParam()[1] : "50.0",
+                    value.getParam().length > 2 ? value.getParam()[2] : "0"
+            };
+            //edo
+            t_rf = new ReqSketchReduce(
+                    value.getNoOfP(), 0, reduceParams,
+                    value.getSynopsisID(), value.getRequestID());
             t_rf.add(value);
         }
 
@@ -112,6 +126,7 @@ public class ReduceFlatMap extends RichFlatMapFunction<Estimation, Estimation> {
     {
         return param.split(";");
     }
+
 
 }
 

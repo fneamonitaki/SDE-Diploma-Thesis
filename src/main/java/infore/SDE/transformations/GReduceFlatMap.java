@@ -4,6 +4,7 @@ import infore.SDE.messages.Estimation;
 import lib.WDFT.PAIR;
 import lib.WLSH.SimilarSims;
 import org.apache.flink.api.common.functions.RichFlatMapFunction;
+import org.apache.flink.configuration.Configuration;
 import org.apache.flink.util.Collector;
 
 import java.util.ArrayList;
@@ -17,11 +18,35 @@ public class GReduceFlatMap extends RichFlatMapFunction<Estimation, Estimation> 
      */
     private static final long serialVersionUID = 1L;
     private HashMap<String, Object> state = new HashMap<>();
-
+    private long measurementStart = -1;
+    private long completedQueries = 0;
+    private volatile double throughput = 0;
 
     @Override
     public void flatMap(Estimation value, Collector<Estimation> out) {
        // System.out.println(value.toString());
+
+        long now = System.currentTimeMillis();
+
+        if (measurementStart < 0) {
+            measurementStart = now;
+        }
+
+        completedQueries++;
+
+        long elapsed = now - measurementStart;
+
+        if (elapsed >= 1000) {
+
+            throughput =
+                    completedQueries * 1000.0 / elapsed;
+
+            //System.out.println( "[GReduce] QPS = "+ throughput);
+
+            completedQueries = 0;
+            measurementStart = now;
+        }
+
         int id = value.getSynopsisID();
         boolean init = false;
         Object tmp = state.get(value.getEstimationkey());
@@ -121,6 +146,11 @@ public class GReduceFlatMap extends RichFlatMapFunction<Estimation, Estimation> 
         }
         System.out.println("output -> " + tmp);
         return tmp;
+    }
+
+    public void open(Configuration config) {
+
+        getRuntimeContext().getMetricGroup().gauge("QueryThroughputQPS",() -> throughput);
     }
 
 }

@@ -46,6 +46,13 @@ public class dataRouterCoFlatMap extends RichCoFlatMapFunction<Datapoint, Reques
             }
         }
 
+        //if no parallelism is configured, forward directly as-is
+        if ((KeyedParallelism.size() == 0) && (RandomParallelism.size() == 0)
+                && !MapToGrid.containsKey(value.getDataSetkey())) {
+            out.collect(value);
+            return;
+        }
+
         //Send Data with default Key the StreamID
         // value.f0 = value_tokens[0];
         //out.collect(value);
@@ -91,6 +98,7 @@ public class dataRouterCoFlatMap extends RichCoFlatMapFunction<Datapoint, Reques
                 }
             }
         }
+
     }
 
     @Override
@@ -126,7 +134,7 @@ public class dataRouterCoFlatMap extends RichCoFlatMapFunction<Datapoint, Reques
                     }
                 } else if (rq.getRequestID() == 4) {
                     if (RandomParallelism.get(rq.getNoOfP()) == null) {
-                        KeyedParallelism.put(rq.getNoOfP(), new Tuple2<>(1, 0));
+                        RandomParallelism.put(rq.getNoOfP(), new Tuple2<>(1, 0));
                     } else {
                         Tuple2<Integer, Integer> t = RandomParallelism.get(rq.getNoOfP());
                         t.f0++;
@@ -154,7 +162,7 @@ public class dataRouterCoFlatMap extends RichCoFlatMapFunction<Datapoint, Reques
                 //System.out.print("\n StateUpdate");
                 rs.update(tmp);
             }
-             */
+*/
 
         } else if (rq.getRequestID() == 2) {
 
@@ -199,7 +207,7 @@ public class dataRouterCoFlatMap extends RichCoFlatMapFunction<Datapoint, Reques
                     // rs.update(tmp2);
 
                 } else {
-                   // rs.update(new Tuple1<String>(""));
+                    // rs.update(new Tuple1<String>(""));
                 }
             }
         }

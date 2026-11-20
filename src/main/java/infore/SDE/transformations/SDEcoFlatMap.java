@@ -7,6 +7,7 @@ import java.util.*;
 
 import com.fasterxml.jackson.core.JsonProcessingException;
 import lib.WDFT.controlBucket;
+import infore.SDE.synopses.Sketches.ReqSketchSynopsis;
 import lib.WLSH.Bucket;
 import infore.SDE.synopses.*;
 import org.apache.flink.configuration.Configuration;
@@ -22,15 +23,30 @@ public class SDEcoFlatMap extends RichCoFlatMapFunction<Datapoint, Request, Esti
 	private HashMap<String,ArrayList<Synopsis>> M_Synopses = new HashMap<>();
 	private HashMap<String,ArrayList<ContinuousSynopsis>> MC_Synopses = new HashMap<>();
 	private int pId;
+	private int multiplier=500;
+
+	public long firstRecordMs = -1L;
+	public long lastRecordMs = -1L;
+	public long cpuTime = 0L;
 
 	@Override
 	public void flatMap1(Datapoint node, Collector<Estimation> collector) throws JsonProcessingException {
 		//System.out.println(node.toString());
 		//System.out.println(MC_Synopses.size());
+
+		if(firstRecordMs < 0 ){
+			firstRecordMs = System.currentTimeMillis();
+		}
 		ArrayList<Synopsis>  Synopses =  M_Synopses.get(node.getKey());
 		if (Synopses != null) {
 			for (Synopsis ski : Synopses) {
-				ski.add(node.getValues());
+				long start=System.currentTimeMillis();
+				//datapoint multiplier
+				for (int i = 0; i < multiplier; i++) {
+					ski.add(node.getValues());
+				}
+				cpuTime += System.currentTimeMillis() - start;
+				lastRecordMs = System.currentTimeMillis();
 			}
 		M_Synopses.put(node.getKey(),Synopses);
 		}
@@ -162,6 +178,13 @@ public class SDEcoFlatMap extends RichCoFlatMapFunction<Datapoint, Request, Esti
 				//String[] _tmp = { "2", "2", "0.01"};
 				Synopses.add(sketch);
 			break;
+			case 18:
+				if (rq.getParam().length > 3)
+					sketch = new ReqSketchSynopsis(rq.getUID(), rq.getParam());
+				//String[] _tmp = { "2.0", "null", "Queryable", "k"};
+				Synopses.add(sketch);
+				System.out.println("Synopses Req Sketch Added!");
+			break;
 			// 6-> dynamic load sketch
 			case 25:
 
@@ -280,7 +303,7 @@ public class SDEcoFlatMap extends RichCoFlatMapFunction<Datapoint, Request, Esti
 							Synopses.remove(syn);
 							M_Synopses.put(rq.getKey(), Synopses);
 
-						} else if ((rq.getRequestID() % 10 == 3) || (rq.getRequestID() % 10 == 6)) {
+						} else if ((rq.getRequestID() % 10 == 3) || (rq.getRequestID() % 10 == 6) || (rq.getRequestID() == 14))  {
 
 							Estimation e = syn.estimate(rq);
 							if (e.getEstimation() != null) {
@@ -330,6 +353,9 @@ public class SDEcoFlatMap extends RichCoFlatMapFunction<Datapoint, Request, Esti
 	}
 	public void open(Configuration config)  {
 	 	pId = getRuntimeContext().getIndexOfThisSubtask();
+		 getRuntimeContext().getMetricGroup().gauge("TupleProcessingStartMs",()->firstRecordMs);
+		getRuntimeContext().getMetricGroup().gauge("TupleProcessingLastMs",()->lastRecordMs);
+		getRuntimeContext().getMetricGroup().gauge("cpuTime",()->cpuTime);
 	}
 
 }
