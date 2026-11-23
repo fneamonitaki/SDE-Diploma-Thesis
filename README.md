@@ -256,7 +256,7 @@ After a successful build, the generated Fat JAR can be found in the `target` dir
 
 ```json
 {
-  "values": "{"temperature":28.49}",
+  "values": "{\"temperature\":28.49}",
   "streamID": "1",
   "dataSetKey": "example_dataset"
 }
