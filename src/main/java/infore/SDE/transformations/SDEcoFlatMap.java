@@ -178,7 +178,8 @@ public class SDEcoFlatMap extends RichCoFlatMapFunction<Datapoint, Request, Esti
 				//String[] _tmp = { "2", "2", "0.01"};
 				Synopses.add(sketch);
 			break;
-			case 18:
+			//reqsketch synopsis
+			case 19:
 				if (rq.getParam().length > 3)
 					sketch = new ReqSketchSynopsis(rq.getUID(), rq.getParam());
 				//String[] _tmp = { "2.0", "null", "Queryable", "k"};
